@@ -33,11 +33,19 @@ RUN rm -rf /var/cache/yum/ && yum makecache fast && \
   # install Rmpi
   Rscript -e "install.packages('Rmpi', repos = '$CRAN_URL', configure.args = c('--with-Rmpi-include=/usr/include', '--with-Rmpi-libpath=/usr/lib64', '--with-Rmpi-type=MPICH2'))" && \
   groupadd -r slurm --gid=991 && useradd -r -g slurm --uid=991 slurm && \
-  mkdir /var/log/slurm && chown slurm: /var/log/slurm && \
-  mkdir /var/spool/slurm && chown slurm: /var/spool/slurm && \
-  mkdir /var/run/slurmd && chown slurm: /var/run/slurmd && \
-  mkdir /var/run/slurmdbd && chown slurm: /var/run/slurmdbd && \
-  mkdir /data
+  mkdir /var/log/slurm /var/spool/slurm /var/run/slurmd /var/run/slurmdbd && \
+  chown slurm: /var/log/slurm && chown slurm: /var/run/slurmd && chown slurm: /var/run/slurmdbd && \
+  touch /var/spool/slurm/node_state \
+        /var/spool/slurm/front_end_state \
+        /var/spool/slurm/job_state \
+        /var/spool/slurm/resv_state \
+        /var/spool/slurm/trigger_state \
+        /var/spool/slurm/assoc_mgr_state \
+        /var/spool/slurm/assoc_usage \
+        /var/spool/slurm/qos_usage \
+        /var/spool/slurm/fed_mgr_state && \
+  chown -R slurm: /var/spool/slurm && \
+  mkdir /data  
 
 COPY docker-entrypoint.sh /slurm/docker-entrypoint.sh
 ENTRYPOINT ["/slurm/docker-entrypoint.sh"]
