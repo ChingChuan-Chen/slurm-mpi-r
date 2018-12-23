@@ -147,3 +147,29 @@ ssh $host docker volume rm slurm_etc_munge slurm_etc_slurm slurm_slurm_jobdir sl
 done
 ```
 
+## Installing Other R Packages
+
+You can enter the container of slurmctld and then implement following script:
+
+```
+su - rstudio
+# gen ssh key
+ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""
+
+# get hosts
+hosts=($(cat slurm-confs/slurm.conf  | grep "^NodeName" | cut -d " " -f 1 | cut -d "=" -f 2))
+
+# copy ssh key
+yum install sshpass -y
+PASS=password
+for host in ${hosts[@]}; do
+  ssh-keyscan rstudio@$host >> ~/.ssh/known_hosts
+  sshpass -p $PASS ssh-copy-id rstudio@$host
+done
+
+# install
+for host in ${hosts[@]}; do 
+  ssh rstudio@$host Rscript -e "install.packages(c('data.table', 'pipeR', 'stringr', 'lubridate'), repos = '$CRAN_URL')"
+done
+```
+
