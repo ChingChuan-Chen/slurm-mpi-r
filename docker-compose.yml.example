@@ -1,0 +1,92 @@
+version: "3.1"
+
+networks:
+  slurm-net:
+    driver: overlay
+
+volumes:
+  etc_munge:
+  etc_slurm:
+  slurm_jobdir:
+  var_lib_mysql:
+  var_log_slurm:
+
+services:
+  mysql:
+    image: mysql:8
+    hostname: mysql
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: slurm_acct_db
+      MYSQL_USER: slurm
+      MYSQL_PASSWORD: password
+    networks:
+      - slurm-net
+    volumes:
+      - var_lib_mysql:/var/lib/mysql
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  slurmdbd:
+    image: jamal0230/slurm-mpi-r:latest
+    command: ["slurmdbd"]
+    hostname: slurmdbd
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - var_log_slurm:/var/log/slurm
+    depends_on:
+      - mysql
+    networks:
+      - slurm-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  slurmctld:
+    image: jamal0230/slurm-mpi-r:latest
+    command: ["slurmctld"]
+    hostname: slurmctld
+    ports:
+      - "8787:8787"
+    environment:
+      USER: rstudio
+      PASSWORD: rstudio
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - slurm_jobdir:/data
+      - var_log_slurm:/var/log/slurm
+    depends_on:
+      - slurmdbd
+    networks:
+      - slurm-net
+    deploy:
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  worker:
+    image: jamal0230/slurm-mpi-r:latest
+    command: ["slurmd"]
+    hostname: worker
+    volumes:
+      - etc_munge:/etc/munge
+      - etc_slurm:/etc/slurm
+      - slurm_jobdir:/data
+      - var_log_slurm:/var/log/slurm
+    depends_on:
+      - slurmctld
+    networks:
+      - slurm-net
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role == slurmd
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
