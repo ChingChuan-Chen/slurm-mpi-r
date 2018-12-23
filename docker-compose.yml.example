@@ -3,17 +3,23 @@ version: "3.1"
 networks:
   slurm-net:
     driver: overlay
+    external: true
 
 volumes:
   etc_munge:
   etc_slurm:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /slurm-confs
   slurm_jobdir:
   var_lib_mysql:
   var_log_slurm:
 
 services:
   mysql:
-    image: mysql:8
+    image: mysql:5.7
     hostname: mysql
     environment:
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
@@ -65,27 +71,6 @@ services:
     networks:
       - slurm-net
     deploy:
-      restart_policy:
-        condition: on-failure
-        max_attempts: 3
-
-  worker:
-    image: jamal0230/slurm-mpi-r:latest
-    command: ["slurmd"]
-    hostname: worker
-    volumes:
-      - etc_munge:/etc/munge
-      - etc_slurm:/etc/slurm
-      - slurm_jobdir:/data
-      - var_log_slurm:/var/log/slurm
-    depends_on:
-      - slurmctld
-    networks:
-      - slurm-net
-    deploy:
-      placement:
-        constraints:
-          - node.labels.role == slurmd
       restart_policy:
         condition: on-failure
         max_attempts: 3

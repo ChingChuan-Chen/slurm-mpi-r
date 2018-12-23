@@ -3,7 +3,7 @@ FROM jamal0230/centos-rstudio-mkl-r:3.4.4
 ENV SLURM_VER=17.11.12 MPICH_VER=3.2.1 GOSU_VER=1.11
 
 WORKDIR /root
-RUN yum clean all && yum makecache fast && \
+RUN rm -rf /var/cache/yum/ && yum makecache fast && \
   yum install -y golang mariadb-server mariadb-devel munge munge-libs munge-devel rng-tools \
     pam-devel numactl numactl-devel hwloc hwloc-devel lua lua-devel rrdtool-devel ncurses-devel \
     man2html libibmad libibumad cpanm* hdf5 hdf5-devel json-c-devel lz4-devel libibmad-devel \
@@ -33,6 +33,10 @@ RUN yum clean all && yum makecache fast && \
   # install Rmpi
   Rscript -e "install.packages('Rmpi', repos = '$CRAN_URL', configure.args = c('--with-Rmpi-include=/usr/include', '--with-Rmpi-libpath=/usr/lib64', '--with-Rmpi-type=MPICH2'))" && \
   groupadd -r slurm --gid=991 && useradd -r -g slurm --uid=991 slurm && \
+  mkdir /var/log/slurm && chown slurm: /var/log/slurm && \
+  mkdir /var/spool/slurm && chown slurm: /var/spool/slurm && \
+  mkdir /var/run/slurmd && chown slurm: /var/run/slurmd && \
+  mkdir /var/run/slurmdbd && chown slurm: /var/run/slurmdbd && \
   mkdir /data
 
 COPY docker-entrypoint.sh /slurm/docker-entrypoint.sh

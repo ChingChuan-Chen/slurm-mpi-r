@@ -52,21 +52,16 @@ PARTITION_NAME=normal
 ./generate_slurm_config.sh ${ROLE_LABEL} ${WORKER_HOSTNAME} ${PARTITION_NAME}
 ```
 
-5. modify `docker-compose.yml` to make etc_slurm to the directory, slurm-confs. Like this:
-```
-  etc_slurm:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /slurm-confs
-```
-
-6. copy `slurm-confs` to each node:
+5. copy `slurm-confs` to each node:
 ```
 for host in host01 host02 host03; do
   scp -r slurm-confs $host:/
 done
+```
+
+6. create network
+```
+docker network create --driver=overlay --attachable slurm-net
 ```
 
 7. Run `docker stack` with `docker-compose.yml`
@@ -95,8 +90,7 @@ To register the cluster to the slurmdbd daemon, run the `register_cluster.sh`:
 ```
 host=$(docker service ps -f 'name=slurm' slurm_slurmctld | awk '{print $4}' | tail -1)
 scp register_cluster.sh $host:~/
-CLUSTER_NAME=linux
-ssh $host ~/register_cluster.sh ${CLUSTER_NAME}
+ssh $host ~/register_cluster.sh 
 ```
 
 > Note: You may have to wait a few seconds for the cluster daemons to become
@@ -144,6 +138,12 @@ To remove all containers and volumes, run:
 
 ```console
 docker stack rm slurm
-docker volume rm slurm-docker-cluster_etc_munge slurm-docker-cluster_etc_slurm slurm-docker-cluster_slurm_jobdir slurm-docker-cluster_var_lib_mysql slurm-docker-cluster_var_log_slurm
+for host in host01 host02 host03; do
+  ssh $host << EOF
+docker rm $(docker ps -a -f status=exited -q)
+docker rm $(docker ps -a -f status=created -q)
+EOF
+ssh $host docker volume rm slurm_etc_munge slurm_etc_slurm slurm_slurm_jobdir slurm_var_lib_mysql slurm_var_log_slurm
+done
 ```
 
