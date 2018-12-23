@@ -39,3 +39,4 @@ COPY docker-entrypoint.sh /slurm/docker-entrypoint.sh
 ENTRYPOINT ["/slurm/docker-entrypoint.sh"]
 
 CMD ["slurmdbd"]
+
