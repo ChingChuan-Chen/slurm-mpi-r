@@ -96,17 +96,26 @@ EOF
 done
 ```
 
-6. copy `slurm-confs` to each node:
+6. create folders
 ``` shell
+mkdir /data/nfs_vol/slurm_spool
+mkdir /data/nfs_vol/slurm_conf
+mkdir /data/nfs_vol/data
+mkdir /data/nfs_vol/mysql
+```
+
+7. copy `slurm-confs` to each node:
+``` shell
+rm -f /data/nfs_vol/slurm_conf/*.conf
 cp slurm-confs/*.conf /data/nfs_vol/slurm_conf
 ```
 
-7. create network
+8. create network
 ``` shell
 docker network create --driver=overlay --attachable slurm-net
 ```
 
-8. Run `docker stack` with `docker-compose.yml`
+9. Run `docker stack` with `docker-compose.yml`
 ``` shell
 docker stack deploy --with-registry-auth slurm --compose-file=docker-compose.yml
 ```
@@ -211,6 +220,7 @@ done
 You can enter the container of slurmctld and then implement following script:
 
 ``` shell
+yum install sshpass -y
 su - rstudio
 # gen ssh key
 ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""
@@ -218,17 +228,16 @@ ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""
 # get hosts
 hosts=($(cat /etc/slurm/slurm.conf  | grep "^NodeName" | cut -d " " -f 1 | cut -d "=" -f 2))
 
-# copy ssh key
-yum install sshpass -y
-PASS=password
+# copy ssh key (PASS may be changed in docker-compose.yml)
+PASS=rstudio
 for host in ${hosts[@]}; do
-  ssh-keyscan rstudio@$host >> ~/.ssh/known_hosts
+  ssh-keyscan $host >> ~/.ssh/known_hosts
   sshpass -p $PASS ssh-copy-id rstudio@$host
 done
 
 # install
 for host in ${hosts[@]}; do 
-  ssh rstudio@$host Rscript -e "install.packages(c('data.table', 'pipeR', 'stringr', 'lubridate'), repos = '$CRAN_URL')"
+  ssh rstudio@$host Rscript -e "install.packages(c('snow', 'data.table', 'pipeR', 'stringr', 'lubridate'), repos = '$CRAN_URL')"
 done
 ```
 

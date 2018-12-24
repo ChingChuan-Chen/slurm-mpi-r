@@ -8,6 +8,12 @@ networks:
 volumes:
   etc_munge:
   var_log_slurm:
+  var_spool_slurm:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
+      device: ":/data/nfs_vol/slurm_spool"
   etc_slurm:
     driver: local
     driver_opts:
@@ -61,7 +67,7 @@ services:
     networks:
       - slurm-net
     deploy:
-       placement:
+      placement:
         constraints:
           - node.role == manager
       restart_policy:
@@ -81,6 +87,7 @@ services:
       - etc_munge:/etc/munge
       - etc_slurm:/etc/slurm
       - slurm_jobdir:/data
+      - var_spool_slurm:/var/spool/slurm
       - var_log_slurm:/var/log/slurm
     depends_on:
       - slurmdbd
