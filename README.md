@@ -24,7 +24,7 @@ The compose file will create the following named volumes:
 ## Starting the Cluster
 
 1. Initialize a docker swarm cluster
-```
+``` shell
 docker swarm init --advertise-addr W.X.Y.Z
 # show the token of worker
 docker swarm join-token worker
@@ -33,61 +33,120 @@ docker swarm join-token manager
 ```
 
 2. Join workers / manager
-```
+``` shell
 docker swarm join --token SWMTKN-1-U-V W.X.Y.Z:2377
 ```
 
 3. label nodes
-```
+``` shell
 for host in host01 host02 host03; do
   docker node update --label-add role=slurmd $host
 done
 ```
 
 4. generate slurm configs (slurm.conf / slurmdbd.conf / docker-compose.yml)
-```
+``` shell
 ROLE_LABEL=slurmd
 WORKER_HOSTNAME=worker
 PARTITION_NAME=normal
 ./generate_slurm_config.sh ${ROLE_LABEL} ${WORKER_HOSTNAME} ${PARTITION_NAME}
 ```
 
-5. copy `slurm-confs` to each node:
-```
+5. create nfs for volumes
+``` shell
+# install nfs
 for host in host01 host02 host03; do
-  scp -r slurm-confs $host:/
+  ssh $host << EOF
+yum -y install nfs-utils
+systemctl start rpcbind
+systemctl enable rpcbind
+EOF
+done
+
+## at host01
+mkdir -p /data/nfs_vol
+touch /data/nfs_vol/test.txt
+tee /etc/exports << EOF
+# swarm nfs share volume
+# /data/nfs_vol: shared directory
+# 192.168.1.0/24: subnet having privilege to access
+# rw: permission to read and write. ro: read only
+# sync: synchronized, slow, secure.
+# async: asynchronized, fast, less secure
+# no_root_squash: open to root to use
+/data/nfs_vol 192.168.1.0/24(rw,sync,no_root_squash)
+EOF
+# start nfs
+systemctl enable nfs
+systemctl start nfs
+
+# install and config autofs on nodes
+for host in host02 host03; do
+  ssh $host << EOF
+yum -y install autofs
+tee -a /etc/auto.master << EOF2
+/mnt /etc/auto.mnt
+EOF2
+tee /etc/auto.mnt << EOF2
+nfs_vol -rw,bg,soft,intr,rsize=8192,wsize=8192 jamalslurm01:/data/nfs_vol
+EOF2
+systemctl enable autofs
+systemctl start autofs
+EOF
 done
 ```
 
-6. create network
+6. copy `slurm-confs` to each node:
+``` shell
+cp slurm-confs/*.conf /data/nfs_vol/slurm_conf
 ```
+
+7. create network
+``` shell
 docker network create --driver=overlay --attachable slurm-net
 ```
 
-7. Run `docker stack` with `docker-compose.yml`
-```
+8. Run `docker stack` with `docker-compose.yml`
+``` shell
 docker stack deploy --with-registry-auth slurm --compose-file=docker-compose.yml
 ```
 
 ## Check Services
 
-```
+``` shell
 docker stack services slurm
 # ID                  NAME                MODE                REPLICAS            IMAGE                          PORTS
-# 1izm55u6vikp        slurm_worker03      replicated          1/1                 jamal0230/slurm-mpi-r:latest
-# i6md52xfk1wm        slurm_mysql         replicated          1/1                 mysql:5.7
-# o1593exavzgm        slurm_worker01      replicated          1/1                 jamal0230/slurm-mpi-r:latest
-# tm461b88qywm        slurm_slurmdbd      replicated          1/1                 jamal0230/slurm-mpi-r:latest
-# w75hmehzgvp6        slurm_worker02      replicated          1/1                 jamal0230/slurm-mpi-r:latest
-# wb8l2xs00xjx        slurm_slurmctld     replicated          1/1                 jamal0230/slurm-mpi-r:latest   *:8787->8787/tcp
+# hpjinq7ofq9p        slurm_worker02      replicated          1/1                 jamal0230/slurm-mpi-r:latest
+# kvwooy6h84tn        slurm_slurmctld     replicated          1/1                 jamal0230/slurm-mpi-r:latest   *:8787->8787/tcp
+# othscynhf2k0        slurm_worker03      replicated          1/1                 jamal0230/slurm-mpi-r:latest
+# qefzp0p5ad2a        slurm_slurmdbd      replicated          1/1                 jamal0230/slurm-mpi-r:latest
+# tdbofizrdufc        slurm_mysql         replicated          1/1                 mysql:5.7
+# vky0wtltl1vz        slurm_worker01      replicated          1/1                 jamal0230/slurm-mpi-r:latest
+docker service ps slurm_mysql
+# ID                  NAME                IMAGE               NODE                DESIRED STATE       CURRENT STATE            ERROR               PORTS
+# 07tauqolndi2        slurm_mysql.1       mysql:5.7           jamalslurm01        Running             Running 40 seconds ago
+docker service ps slurm_slurmdbd
+# ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE            ERROR               PORTS
+# xgwd36gbuhjh        slurm_slurmdbd.1    jamal0230/slurm-mpi-r:latest   jamalslurm03        Running             Running 55 seconds ago
+docker service ps slurm_slurmctld
+# ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE           ERROR               PORTS
+# ihycvswsc1u2        slurm_slurmctld.1   jamal0230/slurm-mpi-r:latest   jamalslurm03        Running             Running 2 minutes ago
+docker service ps slurm_worker01
+# ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE           ERROR               PORTS
+# ukk2cvkbi103        slurm_worker01.1    jamal0230/slurm-mpi-r:latest   jamalslurm01        Running             Running 2 minutes ago
+docker service ps slurm_worker02
+# ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE           ERROR               PORTS
+# wekwjrhehra0        slurm_worker02.1    jamal0230/slurm-mpi-r:latest   jamalslurm02        Running             Running 2 minutes ago
+docker service ps slurm_worker03
+# ID                  NAME                IMAGE                          NODE                DESIRED STATE       CURRENT STATE                ERROR               PORTS
+# p923mzkokw4g        slurm_worker03.1    jamal0230/slurm-mpi-r:latest   jamalslurm03        Running             Running about a minute ago
 ```
-
 
 ## Register the Cluster with SlurmDBD
 
 To register the cluster to the slurmdbd daemon, run the `register_cluster.sh`:
 
-```
+```shell
 host=$(docker service ps -f 'name=slurm' slurm_slurmctld | awk '{print $4}' | tail -1)
 scp register_cluster.sh $host:~/
 ssh $host ~/register_cluster.sh 
@@ -103,9 +162,9 @@ ssh $host ~/register_cluster.sh
 
 Use `docker exec` to run a bash shell on the controller container:
 
-```
+```shell
 # get host of slurmctld
-host=$(docker service ps -f 'name=slurm' slurm_slurmctld | awk '{print $4}' | tail -1)
+host=$(docker service ps -f 'name=slurm' slurm_slurmctld | awk '{print $4}' | head -2 | tail -1)
 ssh $host
 docker exec -it slurm_slurmctld.1.$(docker service ps -f 'name=slurm' slurm_slurmctld -q --no-trunc | head -n1) /bin/bash
 ```
@@ -115,7 +174,7 @@ From the shell, execute slurm commands, for example:
 ```console
 [root@slurmctld /]# sinfo
 PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
-normal*      up   infinite      3   idle slurm_worker[01-03]
+normal       up   infinite      3   idle worker[01-03]
 ```
 
 ## Submitting Jobs
@@ -124,7 +183,7 @@ The `slurm_jobdir` named volume is mounted on each Slurm container as `/data`.
 Therefore, in order to see job output files while on the controller, change to
 the `/data` directory when on the **slurmctld** container and then submit a job:
 
-```console
+``` shell
 [root@slurmctld /]# cd /data/
 [root@slurmctld data]# sbatch --wrap="uptime"
 Submitted batch job 2
@@ -136,12 +195,12 @@ slurm-2.out
 
 To remove all containers and volumes, run:
 
-```console
+``` shell
 docker stack rm slurm
 for host in host01 host02 host03; do
   ssh $host << EOF
-docker rm $(docker ps -a -f status=exited -q)
-docker rm $(docker ps -a -f status=created -q)
+docker stop $(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
+docker rm $(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
 EOF
 ssh $host docker volume rm slurm_etc_munge slurm_etc_slurm slurm_slurm_jobdir slurm_var_lib_mysql slurm_var_log_slurm
 done
@@ -151,13 +210,13 @@ done
 
 You can enter the container of slurmctld and then implement following script:
 
-```
+``` shell
 su - rstudio
 # gen ssh key
 ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""
 
 # get hosts
-hosts=($(cat slurm-confs/slurm.conf  | grep "^NodeName" | cut -d " " -f 1 | cut -d "=" -f 2))
+hosts=($(cat /etc/slurm/slurm.conf  | grep "^NodeName" | cut -d " " -f 1 | cut -d "=" -f 2))
 
 # copy ssh key
 yum install sshpass -y

@@ -1,4 +1,4 @@
-version: "3.1"
+version: "3.2"
 
 networks:
   slurm-net:
@@ -7,15 +7,25 @@ networks:
 
 volumes:
   etc_munge:
+  var_log_slurm:
   etc_slurm:
     driver: local
     driver_opts:
-      type: none
-      o: bind
-      device: /slurm-confs
+      type: nfs
+      o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
+      device: ":/data/nfs_vol/slurm_conf"
   slurm_jobdir:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
+      device: ":/data/nfs_vol/data"
   var_lib_mysql:
-  var_log_slurm:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
+      device: ":/data/nfs_vol/mysql"
 
 services:
   mysql:
@@ -31,6 +41,9 @@ services:
     volumes:
       - var_lib_mysql:/var/lib/mysql
     deploy:
+      placement:
+        constraints:
+          - node.role == manager
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -48,6 +61,9 @@ services:
     networks:
       - slurm-net
     deploy:
+       placement:
+        constraints:
+          - node.role == manager
       restart_policy:
         condition: on-failure
         max_attempts: 3
@@ -71,6 +87,9 @@ services:
     networks:
       - slurm-net
     deploy:
+      placement:
+        constraints:
+          - node.role == manager
       restart_policy:
         condition: on-failure
         max_attempts: 3

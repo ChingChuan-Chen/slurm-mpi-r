@@ -1,34 +1,45 @@
 #!/usr/bin/env bash
 set -e
 
-for f in `ls slurm-confs-example/`; do
-  cp slurm-confs-example/$f slurm-confs/$(echo $f | cut -d '.' -f 1).conf
-done
+defaultYes=""
+if [ ! -f "slurm-confs/slurm.conf" ]; then
+  for f in `ls slurm-confs-example/`; do
+    cp slurm-confs-example/$f slurm-confs/$(echo $f | cut -d '.' -f 1).conf
+  done
+  defaultYes="Default=yes"
+fi
 
 echo "# COMPUTE NODES" >> slurm-confs/slurm.conf
 hosts=($(docker node ls -q | xargs docker node inspect   -f '{{ .Description.Hostname }} {{ .Spec.Labels }}' | grep "role:$1" | awk '{print $1}'))
 k=1
+hostJoin=""
 for host in ${hosts[@]}; do
   result=$(ssh $host << EOF
-echo "NodeName=${2}$(printf '%02i' $k) CPUs=\$(lscpu | grep -E '^CPU\(' | grep -o '[0-9]\+$') ThreadsPerCore=$(lscpu | grep -E '^Thread' | grep -o '[0-9]\+$') CoresPerSocket=\$(lscpu | grep -E '^Core' | grep -o '[0-9]\+$') RealMemory=\$(awk '/MemTotal/{printf("%.0f\n", \$2/1024)}' /proc/meminfo) State=UNKNOWN"
+echo "NodeName=${2}$(printf '%02i' $k) CPUs=\$(lscpu | grep -E '^CPU\(' | grep -o '[0-9]\+$') Sockets=\$(lscpu | grep -E '^Socket' | grep -o '[0-9]\+$') ThreadsPerCore=\$(lscpu | grep -E '^Thread' | grep -o '[0-9]\+$') CoresPerSocket=\$(lscpu | grep -E '^Core' | grep -o '[0-9]\+$') State=UNKNOWN"
 EOF
 2>&1)
   echo $result >> slurm-confs/slurm.conf
+  if [ "$hostJoin" = "" ]; then
+    hostJoin="${2}$(printf '%02i' $k)"
+  else
+    hostJoin="$hostJoin,${2}$(printf '%02i' $k)"
+  fi
   k=$(($k + 1))
 done
 
-hostJoin=$(printf '%s,' ${hosts[@]})
 echo "# PARTITIONS" >> slurm-confs/slurm.conf
-echo "PartitionName=$3 Default=yes Nodes=${hostJoin:1} State=UP" >> slurm-confs/slurm.conf
+echo "PartitionName=$3 ${defaultYes} Nodes=${hostJoin} State=UP" >> slurm-confs/slurm.conf
 
-cp docker-compose.yml.example docker-compose.yml
+if [ ! -f "docker-compose.yml" ]; then
+  cp docker-compose.yml.example docker-compose.yml
+fi
 k=1
 for host in ${hosts[@]}; do
   echo "
-  worker$(printf "%02i" $k):
+  ${2}$(printf "%02i" $k):
     image: jamal0230/slurm-mpi-r:latest
     command: [\"slurmd\"]
-    hostname: worker$(printf "%02i" $k)
+    hostname: ${2}$(printf "%02i" $k)
     volumes:
       - etc_munge:/etc/munge
       - etc_slurm:/etc/slurm
@@ -47,3 +58,4 @@ for host in ${hosts[@]}; do
         max_attempts: 3"  >> docker-compose.yml
   k=$(($k + 1))
 done
+

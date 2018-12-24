@@ -7,7 +7,7 @@ RUN rm -rf /var/cache/yum/ && yum makecache fast && \
   yum install -y golang mariadb-server mariadb-devel munge munge-libs munge-devel rng-tools \
     pam-devel numactl numactl-devel hwloc hwloc-devel lua lua-devel rrdtool-devel ncurses-devel \
     man2html libibmad libibumad cpanm* hdf5 hdf5-devel json-c-devel lz4-devel libibmad-devel \
-    glibc-devel glib2-devel gtk2-devel rpmdevtools && \
+    glibc-devel glib2-devel gtk2-devel rpmdevtools openssh-server && \
   # build/install SLURM
   wget -q https://download.schedmd.com/slurm/slurm-${SLURM_VER}.tar.bz2 && \
   rpmbuild -ta slurm-${SLURM_VER}.tar.bz2 && \
@@ -32,20 +32,11 @@ RUN rm -rf /var/cache/yum/ && yum makecache fast && \
   /sbin/create-munge-key && \
   # install Rmpi
   Rscript -e "install.packages('Rmpi', repos = '$CRAN_URL', configure.args = c('--with-Rmpi-include=/usr/include', '--with-Rmpi-libpath=/usr/lib64', '--with-Rmpi-type=MPICH2'))" && \
+  Rscript -e "install.packages(c('snow', 'pipeR', 'data.table'), repos = '$CRAN_URL')" && \
   groupadd -r slurm --gid=991 && useradd -r -g slurm --uid=991 slurm && \
-  mkdir /var/log/slurm /var/spool/slurm /var/run/slurmd /var/run/slurmdbd && \
-  chown slurm: /var/log/slurm && chown slurm: /var/run/slurmd && chown slurm: /var/run/slurmdbd && \
-  touch /var/spool/slurm/node_state \
-        /var/spool/slurm/front_end_state \
-        /var/spool/slurm/job_state \
-        /var/spool/slurm/resv_state \
-        /var/spool/slurm/trigger_state \
-        /var/spool/slurm/assoc_mgr_state \
-        /var/spool/slurm/assoc_usage \
-        /var/spool/slurm/qos_usage \
-        /var/spool/slurm/fed_mgr_state && \
-  chown -R slurm: /var/spool/slurm && \
-  mkdir /data  
+  mkdir -p /var/log/slurm /var/spool/slurm/slurmd /var/run/slurmd && \
+  chown slurm: /var/log/slurm && chown slurm: /var/run/slurmd && \
+  chown -R slurm: /var/spool/slurm && mkdir /data && chmod 777 /data
 
 COPY docker-entrypoint.sh /slurm/docker-entrypoint.sh
 ENTRYPOINT ["/slurm/docker-entrypoint.sh"]
