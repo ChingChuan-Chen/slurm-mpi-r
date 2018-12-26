@@ -13,25 +13,25 @@ volumes:
     driver_opts:
       type: nfs
       o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
-      device: ":/data/nfs_vol/slurm_spool"
+      device: ":/data/nfs_vol/slurm/spool"
   etc_slurm:
     driver: local
     driver_opts:
       type: nfs
       o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
-      device: ":/data/nfs_vol/slurm_conf"
+      device: ":/data/nfs_vol/slurm/conf"
   slurm_jobdir:
     driver: local
     driver_opts:
       type: nfs
       o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
-      device: ":/data/nfs_vol/data"
+      device: ":/data/nfs_vol/slurm/data"
   var_lib_mysql:
     driver: local
     driver_opts:
       type: nfs
       o: addr=jamalslurm01,rw,bg,soft,intr,rsize=8192,wsize=8192
-      device: ":/data/nfs_vol/mysql"
+      device: ":/data/nfs_vol/slurm/mysql"
 
 services:
   mysql:

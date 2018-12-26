@@ -26,6 +26,7 @@ if [ "$1" = "slurmdbd" ]; then
 fi
 
 if [ "$1" = "slurmctld" ]; then
+  echo "---> Verify Run User"
   if [ ! -z "$PASSWORD" ]; then
     if [ ! -z "$USER" ]; then
       echo "---> Creating User ..."

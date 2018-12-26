@@ -15,11 +15,12 @@ The compose file will run the following containers:
 
 The compose file will create the following named volumes:
 
-* etc_munge         ( -> /etc/munge     )
-* etc_slurm         ( -> /etc/slurm     )
-* slurm_jobdir      ( -> /data          )
-* var_lib_mysql     ( -> /var/lib/mysql )
-* var_log_slurm     ( -> /var/log/slurm )
+* etc_munge              ( -> /etc/munge       )
+* etc_slurm       (nfs)  ( -> /etc/slurm       )
+* slurm_jobdir    (nfs)  ( -> /data            )
+* var_lib_mysql   (nfs)  ( -> /var/lib/mysql   )
+* var_log_slurm          ( -> /var/log/slurm   )
+* var_spool_slurm (nfs)  ( -> /var/spool/slurm )
 
 ## Starting the Cluster
 
@@ -39,23 +40,20 @@ docker swarm join --token SWMTKN-1-U-V W.X.Y.Z:2377
 
 3. label nodes
 ``` shell
-for host in host01 host02 host03; do
+for host in jamalslurm01 jamalslurm02 jamalslurm03; do
   docker node update --label-add role=slurmd $host
 done
 ```
 
 4. generate slurm configs (slurm.conf / slurmdbd.conf / docker-compose.yml)
 ``` shell
-ROLE_LABEL=slurmd
-WORKER_HOSTNAME=worker
-PARTITION_NAME=normal
-./generate_slurm_config.sh ${ROLE_LABEL} ${WORKER_HOSTNAME} ${PARTITION_NAME}
+./generate_slurm_config.sh slurmd worker normal
 ```
 
 5. create nfs for volumes
 ``` shell
 # install nfs
-for host in host01 host02 host03; do
+for host in jamalslurm01 jamalslurm02 jamalslurm03; do
   ssh $host << EOF
 yum -y install nfs-utils
 systemctl start rpcbind
@@ -63,7 +61,7 @@ systemctl enable rpcbind
 EOF
 done
 
-## at host01
+## at jamalslurm01
 mkdir -p /data/nfs_vol
 touch /data/nfs_vol/test.txt
 tee /etc/exports << EOF
@@ -81,7 +79,7 @@ systemctl enable nfs
 systemctl start nfs
 
 # install and config autofs on nodes
-for host in host02 host03; do
+for host in jamalslurm02 jamalslurm03; do
   ssh $host << EOF
 yum -y install autofs
 tee -a /etc/auto.master << EOF2
@@ -98,10 +96,10 @@ done
 
 6. create folders
 ``` shell
-mkdir /data/nfs_vol/slurm_spool
-mkdir /data/nfs_vol/slurm_conf
-mkdir /data/nfs_vol/data
-mkdir /data/nfs_vol/mysql
+mkdir -p /data/nfs_vol/slurm/spool/slurmd
+mkdir -p /data/nfs_vol/slurm/conf
+mkdir -p /data/nfs_vol/slurm/data
+mkdir -p /data/nfs_vol/slurm/mysql
 ```
 
 7. copy `slurm-confs` to each node:
@@ -176,6 +174,11 @@ Use `docker exec` to run a bash shell on the controller container:
 host=$(docker service ps -f 'name=slurm' slurm_slurmctld | awk '{print $4}' | head -2 | tail -1)
 ssh $host
 docker exec -it slurm_slurmctld.1.$(docker service ps -f 'name=slurm' slurm_slurmctld -q --no-trunc | head -n1) /bin/bash
+
+# get host of worker01
+host=$(docker service ps -f 'name=slurm' slurm_worker01 | awk '{print $4}' | head -2 | tail -1)
+ssh $host
+docker exec -it slurm_worker01.1.$(docker service ps -f 'name=slurm' slurm_worker01 -q --no-trunc | head -n1) /bin/bash
 ```
 
 From the shell, execute slurm commands, for example:
@@ -192,12 +195,16 @@ The `slurm_jobdir` named volume is mounted on each Slurm container as `/data`.
 Therefore, in order to see job output files while on the controller, change to
 the `/data` directory when on the **slurmctld** container and then submit a job:
 
-``` shell
+```console
 [root@slurmctld /]# cd /data/
 [root@slurmctld data]# sbatch --wrap="uptime"
 Submitted batch job 2
 [root@slurmctld data]# ls
 slurm-2.out
+[root@slurmctld data]# srun -N3 hostname
+0:
+1:
+2:
 ```
 
 ## Deleting the Cluster
@@ -206,13 +213,17 @@ To remove all containers and volumes, run:
 
 ``` shell
 docker stack rm slurm
-for host in host01 host02 host03; do
+for host in jamalslurm01 jamalslurm02 jamalslurm03; do
   ssh $host << EOF
-docker stop $(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
-docker rm $(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
+docker stop \$(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
+docker rm \$(docker ps -a -f name=slurm_ -q) 2>&1 >/dev/null
 EOF
-ssh $host docker volume rm slurm_etc_munge slurm_etc_slurm slurm_slurm_jobdir slurm_var_lib_mysql slurm_var_log_slurm
+ssh $host docker volume rm slurm_etc_munge slurm_etc_slurm slurm_slurm_jobdir slurm_var_lib_mysql slurm_var_log_slurm slurm_var_spool_slurm
 done
+
+# clean up node/job status
+rm -rf /data/nfs_vol/slurm/mysql/*
+rm -rf /data/nfs_vol/slurm/spool/*
 ```
 
 ## Installing Other R Packages
@@ -229,6 +240,7 @@ ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -q -N ""
 hosts=($(cat /etc/slurm/slurm.conf  | grep "^NodeName" | cut -d " " -f 1 | cut -d "=" -f 2))
 
 # copy ssh key (PASS may be changed in docker-compose.yml)
+yum install -y sshpass
 PASS=rstudio
 for host in ${hosts[@]}; do
   ssh-keyscan $host >> ~/.ssh/known_hosts
