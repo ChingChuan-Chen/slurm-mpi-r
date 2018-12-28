@@ -2,8 +2,8 @@ version: "3.2"
 
 networks:
   slurm-net:
-    driver: overlay
-    external: true
+    driver: store/weaveworks/net-plugin:latest_release
+    attachable: true
 
 volumes:
   etc_munge:
@@ -34,14 +34,9 @@ volumes:
       device: ":/data/nfs_vol/slurm/mysql"
 
 services:
-  mysql:
-    image: mysql:5.7
-    hostname: mysql
-    environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
-      MYSQL_DATABASE: slurm_acct_db
-      MYSQL_USER: slurm
-      MYSQL_PASSWORD: password
+  mariadb:
+    image: jamal0230/slurm-mariadb:latest
+    hostname: mariadb
     networks:
       - slurm-net
     volumes:
@@ -63,7 +58,7 @@ services:
       - etc_slurm:/etc/slurm
       - var_log_slurm:/var/log/slurm
     depends_on:
-      - mysql
+      - mariadb
     networks:
       - slurm-net
     deploy:
@@ -89,10 +84,10 @@ services:
       - slurm_jobdir:/data
       - var_spool_slurm:/var/spool/slurm
       - var_log_slurm:/var/log/slurm
-    depends_on:
-      - slurmdbd
     networks:
       - slurm-net
+    depends_on:
+      - slurmdbd
     deploy:
       placement:
         constraints:

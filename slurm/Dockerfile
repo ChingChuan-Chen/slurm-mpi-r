@@ -3,11 +3,11 @@ FROM jamal0230/centos-rstudio-mkl-r:3.4.4
 ENV SLURM_VER=18.08.4 MPICH_VER=3.2.1 GOSU_VER=1.11
 
 WORKDIR /root
-RUN rm -rf /var/cache/yum/ && yum makecache fast && \
+RUN rm -rf /var/cache/yum/ && yum makecache fast && yum update -y && \
   yum install -y golang mariadb-server mariadb-devel munge munge-libs munge-devel rng-tools \
     pam-devel numactl numactl-devel hwloc hwloc-devel lua lua-devel rrdtool-devel ncurses-devel \
     man2html libibmad libibumad cpanm* hdf5 hdf5-devel json-c-devel lz4-devel libibmad-devel \
-    glibc-devel glib2-devel gtk2-devel rpmdevtools openssh-server mailx && \
+    glibc-devel glib2-devel gtk2-devel rpmdevtools openssh-server mailx bind-utils net-tools && \
   # build/install SLURM
   wget -q https://download.schedmd.com/slurm/slurm-${SLURM_VER}.tar.bz2 && \
   rpmbuild -ta slurm-${SLURM_VER}.tar.bz2 && \

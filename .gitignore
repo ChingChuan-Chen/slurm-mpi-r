@@ -1,3 +1,3 @@
-slurm-confs/*.conf
+conf/*.conf
 docker-compose.yml
 

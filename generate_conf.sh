@@ -2,14 +2,13 @@
 set -e
 
 defaultYes=""
-if [ ! -f "slurm-confs/slurm.conf" ]; then
-  for f in `ls slurm-confs-example/`; do
-    cp slurm-confs-example/$f slurm-confs/$(echo $f | cut -d '.' -f 1).conf
-  done
+if [ ! -f "conf/slurm.conf" ]; then
+  cp conf-example/slurm-example.conf conf/slurm.conf
+  cp conf-example/slurmdbd-example.conf conf/slurmdbd.conf
   defaultYes="Default=yes"
 fi
 
-echo "# COMPUTE NODES" >> slurm-confs/slurm.conf
+echo "# COMPUTE NODES" >> conf/slurm.conf
 hosts=($(docker node ls -q | xargs docker node inspect   -f '{{ .Description.Hostname }} {{ .Spec.Labels }}' | grep "role:$1" | awk '{print $1}'))
 k=1
 hostJoin=""
@@ -18,7 +17,7 @@ for host in ${hosts[@]}; do
 echo "NodeName=${2}$(printf '%02i' $k) CPUs=\$(lscpu | grep -E '^CPU\(' | grep -o '[0-9]\+$') Sockets=\$(lscpu | grep -E '^Socket' | grep -o '[0-9]\+$') ThreadsPerCore=\$(lscpu | grep -E '^Thread' | grep -o '[0-9]\+$') CoresPerSocket=\$(lscpu | grep -E '^Core' | grep -o '[0-9]\+$') RealMemory=\$(awk '/MemTotal/{printf("%.0f\n", \$2/1024*0.95)}' /proc/meminfo) State=UNKNOWN"
 EOF
 2>&1)
-  echo $result >> slurm-confs/slurm.conf
+  echo $result >> conf/slurm.conf
   if [ "$hostJoin" = "" ]; then
     hostJoin="${2}$(printf '%02i' $k)"
   else
@@ -27,11 +26,11 @@ EOF
   k=$(($k + 1))
 done
 
-echo "# PARTITIONS" >> slurm-confs/slurm.conf
-echo "PartitionName=$3 ${defaultYes} Nodes=${hostJoin} State=UP" >> slurm-confs/slurm.conf
+echo "# PARTITIONS" >> conf/slurm.conf
+echo "PartitionName=$3 ${defaultYes} Nodes=${hostJoin} State=UP" >> conf/slurm.conf
 
 if [ ! -f "docker-compose.yml" ]; then
-  cp docker-compose.yml.example docker-compose.yml
+  cp docker-compose-example.yml docker-compose.yml
 fi
 k=1
 for host in ${hosts[@]}; do

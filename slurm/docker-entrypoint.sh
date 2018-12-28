@@ -10,21 +10,6 @@ if [ ! -d /var/run/sshd ]; then
 fi
 gosu root /usr/sbin/sshd
 
-if [ "$1" = "slurmdbd" ]; then
-  echo "---> Starting the Slurm Database Daemon (slurmdbd) ..."
-  {
-    . /etc/slurm/slurmdbd.conf
-    until echo "SELECT 1" | mysql -h $StorageHost -u$StorageUser -p$StoragePass 2>&1 > /dev/null
-    do
-      echo "-- Waiting for database to become active ..."
-      sleep 2
-    done
-  }
-
-  echo "-- Database is now active ..."
-  exec gosu slurm /usr/sbin/slurmdbd -Dvvv
-fi
-
 if [ "$1" = "slurmctld" ]; then
   echo "---> Verify Run User"
   if [ ! -z "$PASSWORD" ]; then
@@ -50,14 +35,14 @@ if [ "$1" = "slurmctld" ]; then
   echo "---> Starting the RStudio Server ..."
   gosu root /usr/lib/rstudio-server/bin/rserver --rsession-which-r /usr/lib64/R/bin/R --auth-required-user-group ruser
  
-  echo "---> Waiting for slurmdbd to become active before starting slurmctld ..."
+  echo "---> Waiting for mariadb to become active before starting slurmctld ..."
 
-  until 2>/dev/null >/dev/tcp/slurmdbd/6819
+  until 2>/dev/null >/dev/tcp/mariadb/3306
   do
-    echo "-- slurmdbd is not available.  Sleeping ..."
+    echo "-- mariadb is not available.  Sleeping ..."
     sleep 2
   done
-  echo "-- slurmdbd is now active ..."
+  echo "-- mariadb is now active ..."
 
   echo "---> Starting the Slurm Controller Daemon (slurmctld) ..."
   exec gosu slurm /usr/sbin/slurmctld -Dvvv
