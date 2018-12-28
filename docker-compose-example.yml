@@ -2,7 +2,7 @@ version: "3.2"
 
 networks:
   slurm-net:
-    driver: store/weaveworks/net-plugin:latest_release
+    driver: overlay
     attachable: true
 
 volumes:
