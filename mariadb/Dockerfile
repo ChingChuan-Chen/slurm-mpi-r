@@ -2,7 +2,7 @@ FROM centos:7
 
 RUN rm -rf /var/cache/yum/ && yum makecache fast && yum update -y && \
   yum install -y epel-release && \
-  yum install -y mariadb-server bind-utils && \
+  yum install -y mariadb-server bind-utils net-tools && \
   rm -rf /var/lib/mysql && mkdir -p /var/lib/mysql /var/run/mariadb /var/log/mariadb && \
   chown -R mysql:mysql /var/lib/mysql /var/run/mariadb /var/log/mariadb
 

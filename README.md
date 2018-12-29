@@ -1,3 +1,7 @@
+### After testing, it stil fail to start SLURM cluster due to network problem. Its root cause is that slurmdbd will store the ip of slurmctld and not correctly get ip address of slurmctld. Maybe you can fix it by disabling slurmdbd, but we are stop here.
+
+### Also, it works by giving static ip to slurmctld when docker swarm provides static ip setting.
+
 # Slurm Docker Cluster with R and MPI
 
 This is mostly based on [giovtorres/slurm-docker-cluster](https://github.com/giovtorres/slurm-docker-cluster).

@@ -10,6 +10,21 @@ if [ ! -d /var/run/sshd ]; then
 fi
 gosu root /usr/sbin/sshd
 
+if [ "$1" = "slurmdbd" ]; then
+  echo "---> Starting the Slurm Database Daemon (slurmdbd) ..."
+  {
+    . /etc/slurm/slurmdbd.conf
+    until echo "SELECT 1" | mysql -h $StorageHost -u$StorageUser -p$StoragePass 2>&1 > /dev/null
+    do
+      echo "-- Waiting for database to become active ..."
+      sleep 2
+    done
+  }
+
+   echo "-- Database is now active ..."
+  exec gosu slurm /usr/sbin/slurmdbd -Dvvv
+fi
+
 if [ "$1" = "slurmctld" ]; then
   echo "---> Verify Run User"
   if [ ! -z "$PASSWORD" ]; then
@@ -37,7 +52,7 @@ if [ "$1" = "slurmctld" ]; then
  
   echo "---> Waiting for mariadb to become active before starting slurmctld ..."
 
-  until 2>/dev/null >/dev/tcp/mariadb/3306
+  until 2>/dev/null >/dev/tcp/slurmdbd/6819
   do
     echo "-- mariadb is not available.  Sleeping ..."
     sleep 2
