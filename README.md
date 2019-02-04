@@ -1,4 +1,4 @@
-### After testing, it still fail to start SLURM cluster due to some unknown problem. 
+### After testing, it still fail to start SLURM cluster due to some unknown problems. 
 
 # Slurm Docker Cluster with R and MPI
 
